@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smarthost-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-smarthost}
+      POSTGRES_USER: ${POSTGRES_USER:-smarthost_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smarthost_user} -d ${POSTGRES_DB:-smarthost}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smarthost_internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: smarthost-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - smarthost_internal
+
+  backend:
+    build: .
+    container_name: smarthost-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - staging_data:/var/lib/smarthost/staging
+    networks:
+      - smarthost_internal
+
+  worker:
+    build: .
+    container_name: smarthost-worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.worker"]
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - staging_data:/var/lib/smarthost/staging
+    networks:
+      - smarthost_internal
+
+volumes:
+  postgres_data:
+  redis_data:
+  staging_data:
+
+networks:
+  smarthost_internal:
+    driver: bridge
