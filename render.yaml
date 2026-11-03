@@ -1,0 +1,32 @@
+databases:
+  - name: smarthost-postgres
+    databaseName: smarthost
+    user: smarthost_user
+    plan: free
+
+services:
+  - type: web
+    name: smarthost-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: APP_NAME
+        value: BotHostX
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smarthost-postgres
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: VPS_ENCRYPTION_KEY
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: teamnovabd@gmail.com
+      - key: ADMIN_PASSWORD
+        sync: false
